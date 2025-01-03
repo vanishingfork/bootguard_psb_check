@@ -20,7 +20,39 @@ def get_cpu_vendor():
     return "UNKNOWN"
 
 def check_amd_psb():
-    print("AMD Platform Secure Boot check not implemented")
+    # iotools + bash implementation
+    SMN_PUBLIC_BASE=0x3800000
+    PSB_STATUS_OFFSET=0x10994
+    # smn_read32 () {
+	# 	iotools pci_write32 0 0 0 0xB8 $1 (bus, dev, function, reg, ldata)
+	# 	iotools pci_read32 0 0 0 0xBC (bus, dev, function, reg)
+    # }
+    # psb_status=$(smn_read32 $(($SMN_PUBLIC_BASE + $PSB_STATUS_OFFSET)))
+    # psb_enabled=$(iotools and $psb_status 0x1000000)
+    rw_path = resource_path("RW.exe")
+    def smn_read32(ldata):
+        rw_path = resource_path("RW.exe")
+        subprocess.run(
+            [rw_path, "/Min", "/Nologo", "/Stdout", f"/Command=WPCIE32 0 0 0 0xB8 {ldata}"],
+            capture_output=True, text=True
+        )
+        read_result = subprocess.run(
+            [rw_path, "/Min", "/Nologo", "/Stdout", "/Command=RPCIE32 0 0 0 0xBC"],
+            capture_output=True, text=True
+        )
+        for line in read_result.stdout.splitlines():
+            if "Read PCIE" in line and "=" in line:
+                return int(line.split("=")[-1].strip(), 16)
+        return 0
+
+    psb_status = smn_read32(SMN_PUBLIC_BASE + PSB_STATUS_OFFSET)
+    print("PSB status: " + hex(psb_status))
+    # bitwise and (psb_status, 0x1000000)
+    psb_enabled = psb_status & 0x1000000
+    if psb_enabled:
+        print("PSB is enabled")
+    else:
+        print("PSB is not enabled")
 
 def check_intel_bootguard():
     rw_path = resource_path("RW.exe")
